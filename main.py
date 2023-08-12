@@ -13,7 +13,9 @@ class CorreiosTracker:
         self.codigo_entry = tk.Entry(self.root, width=50)
         self.rastreio_button = tk.Button(self.root, text="Rastrear", command=self.rastrear_click)
         self.resultado_text = tk.Text(self.root, width=50, height=10, state="disabled")
+        self.carregamento_label = tk.Label(self.root, text="Carregando...")
 
+        self.carregamento_label.pack_forget()
         self.codigo_rastreamento_label.pack()
         self.codigo_entry.pack()
         self.rastreio_button.pack()
@@ -49,6 +51,7 @@ class CorreiosTracker:
 
     def rastrear_click(self):
         codigo = self.codigo_entry.get()
+        self.carregamento_label.pack()
         if codigo:
             result = self.rastrear_encomenda(codigo)
             pp_result = pprint.pformat(result, depth=6)
@@ -57,8 +60,8 @@ class CorreiosTracker:
             self.resultado_text.insert(tk.END, pp_result)
             self.resultado_text.config(state=tk.DISABLED)
         else:
-            messagebox.showerror("Erro", "Insira um código de rastreamento válido.")
-
+                    messagebox.showerror("Erro", "Insira um código de rastreamento válido.")
+        self.carregamento_label.pack_forget()
 if __name__ == "__main__":
     root = tk.Tk()
     app = CorreiosTracker(root)
