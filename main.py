@@ -29,7 +29,7 @@ def rastrear_encomenda(codigo_rastreamento):
         return eventos_formatados
 
 
-codigo_rastreamento = "LB577473955HK"
+codigo_rastreamento = "codigo aqui"
 result = rastrear_encomenda(codigo_rastreamento)
 pp = pprint.PrettyPrinter(depth=6)
 pp.pprint(result)
