@@ -2,28 +2,20 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import messagebox
 import requests
+import threading
+import sqlite3
 
 
 class CorreiosTracker:
-    """
-    CorreiosTracker é uma aplicaçã simples para rastrear pacotes suas encomendas com a API dos correios.
-
-    Atributos:
-        root: instância principal para a aplicação.
-    """
-
     def __init__(self, root):
-        """
-        Inicializa a aplicação.
-
-        Args:
-            root: A instância principal Tkinter para a aplicação.
-        """
         self.root = root
         self.root.title("Correios Tracker")
 
-        self.style = tk.ttk.Style()
+        self.style = ttk.Style()
         self.style.theme_use("winnative")
+
+        self.db_conn = sqlite3.connect('correios.db')
+        self.criar_db()
 
         self.codigo_rastreamento_label = tk.Label(
             self.root, text="Código de rastreamento:")
@@ -46,16 +38,73 @@ class CorreiosTracker:
         self.resultado_text.grid(
             row=2, column=1, padx=10, pady=10, columnspan=3, sticky="w")
 
+        self.codigo_cadastro_label = tk.Label(
+            self.root, text="Cadastrar novo código:")
+        self.codigo_cadastro_entry = tk.Entry(self.root, width=50)
+        self.cadastrar_button = tk.Button(
+            self.root, text="Cadastrar", command=self.cadastrar_codigo)
+
+        self.codigo_cadastro_label.grid(
+            row=3, column=1, padx=10, pady=10, sticky="w")
+        self.codigo_cadastro_entry.grid(
+            row=3, column=2, padx=10, pady=10, sticky="w")
+        self.cadastrar_button.grid(
+            row=3, column=3, padx=10, pady=10, sticky="w")
+
+        self.notificacao_update()
+
+    def criar_db(self):
+        cursor = self.db_conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS rastreios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                codigo TEXT
+            )
+        """)
+        self.db_conn.commit()
+
+    def inserir_codigo(self, codigo):
+        cursor = self.db_conn.cursor()
+        cursor.execute("""
+            INSERT INTO rastreios (codigo) VALUES (?)
+        """, (codigo,))
+        self.db_conn.commit()
+
+    def pegar_codigos(self):
+        cursor = self.db_conn.cursor()
+        cursor.execute("""
+            SELECT codigo FROM rastreios
+        """)
+        return [row[0] for row in cursor.fetchall()]
+
+    def cadastrar_codigo(self):
+        novo_codigo = self.codigo_cadastro_entry.get()
+        if novo_codigo:
+            self.inserir_codigo(novo_codigo)
+            self.codigo_cadastro_entry.delete(0, tk.END)
+            messagebox.showinfo("Sucesso", "Código cadastrado com sucesso!")
+        else:
+            messagebox.showerror("Erro", "Insira um código válido para cadastrar.")
+
+    def atualizar_codigos_cadastrados(self):
+        codigos_cadastrados = self.pegar_codigos()
+        self.resultado_text.config(state="normal")
+        self.resultado_text.delete("1.0", tk.END)
+        for codigo in codigos_cadastrados:
+            result = self.rastrear_encomenda(codigo)
+            if not result[0].get("error"):
+                for evento in result:
+                    formatted_evento = self.format_evento(evento)
+                    self.resultado_text.insert(tk.END, formatted_evento)
+        self.resultado_text.config(state="disabled")
+        
+        
+        threading.Timer(900, self.atualizar_codigos_cadastrados).start()
+
+    def notificacao_update(self):
+        threading.Timer(0, self.atualizar_codigos_cadastrados).start()
+
     def format_evento(self, evento):
-        """
-        Formata o objeto com eventos para que fique mais legivel ao usuário.
-
-        Args:
-            evento (dict): dicionário contendo informações do evento de rastreamento.
-
-        Returns:
-            @str: Informações do evento de rastreamento formatadas.
-        """
         formatted_evento = f"Data: {evento['data']} {evento['hora']}\n"
         formatted_evento += f"Local: {evento['local']}\n"
         formatted_evento += f"Status: {evento['status']}\n"
@@ -65,15 +114,6 @@ class CorreiosTracker:
         return formatted_evento
 
     def rastrear_encomenda(self, codigo_rastreamento):
-        """
-        Obtém informações do rastreamento para o código de rastreamento.
-
-        Args:
-            codigo_rastreamento (str): Codigo para efetuar o rastreio.
-
-        Returns:
-            array: Uma lista de dicionários contendo informações de eventos de rastreamento formatadas.
-        """
         url = f"https://api.linketrack.com/track/json?user=teste&token=1abcd00b2731640e886fb41a8a9671ad1434c599dbaa0a0de9a5aa619f29a83f&codigo={codigo_rastreamento}"
 
         try:
@@ -107,11 +147,6 @@ class CorreiosTracker:
             return [{"error": f"Erro ao tentar se conectar com o servidor. {str(e)} "}]
 
     def rastrear_click(self):
-        """
-        Manipula o evento de clique.
-
-        Obtém informações de rastreamento com base no código de rastreamento inserido e atualiza a interface de usuário retornando uma mensagem de erro ou atualizacao do codigo.
-        """
         codigo = self.codigo_entry.get()
         self.carregamento_label.grid()
         self.resultado_text.config(state="normal")
